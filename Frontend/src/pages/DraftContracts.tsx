@@ -66,6 +66,41 @@ export default function DraftContracts() {
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const { toast } = useToast();
 
+  const formatContractForExport = (contractData: any) => {
+    let contractText = `${contractData.contractTitle}\n`;
+    contractText += `${'='.repeat(contractData.contractTitle.length)}\n\n`;
+    
+    contractText += `Contract Type: ${contractData.contractType}\n`;
+    contractText += `Party A: ${contractData.partyA}\n`;
+    contractText += `Party B: ${contractData.partyB}\n`;
+    contractText += `Generated: ${new Date(contractData.generatedAt).toLocaleDateString()}\n`;
+    contractText += `Effective Date: ${contractData.effectiveDate}\n`;
+    contractText += `Expiration Date: ${contractData.expirationDate}\n\n`;
+    
+    if (contractData.preamble) {
+      contractText += `PREAMBLE\n${'='.repeat(8)}\n${contractData.preamble}\n\n`;
+    }
+    
+    if (contractData.sections && contractData.sections.length > 0) {
+      contractText += `CONTRACT TERMS\n${'='.repeat(13)}\n\n`;
+      contractData.sections.forEach((section: any) => {
+        contractText += `${section.sectionNumber}. ${section.title}\n`;
+        contractText += `${'-'.repeat(section.title.length + 3)}\n`;
+        contractText += `${section.content}\n\n`;
+      });
+    }
+    
+    if (contractData.conclusion) {
+      contractText += `SIGNATURES\n${'='.repeat(10)}\n${contractData.conclusion}\n\n`;
+    }
+    
+    contractText += `GOVERNING LAW AND JURISDICTION\n${'='.repeat(30)}\n`;
+    contractText += `Jurisdiction: ${contractData.jurisdiction}\n`;
+    contractText += `Governing Law: ${contractData.governingLaw}\n`;
+    
+    return contractText;
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim() || !contractType || !partyA.trim() || !partyB.trim()) {
       toast({
@@ -224,7 +259,7 @@ export default function DraftContracts() {
           </Card>
 
           {/* Risk Analysis */}
-          {responseJson && (
+          {responseJson && responseJson.riskAnalysis && (
             <Card className="card-professional">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -235,13 +270,19 @@ export default function DraftContracts() {
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Overall Risk:</span>
-                  <Badge className={getRiskBadge(mockRiskAnalysis.overallRisk).class}>
-                    {mockRiskAnalysis.overallRisk.toUpperCase()}
+                  <Badge className={getRiskBadge(responseJson.riskAnalysis.overallRisk).class}>
+                    {responseJson.riskAnalysis.overallRisk.toUpperCase()}
                   </Badge>
                 </div>
 
+                {responseJson.riskAnalysis.summary && (
+                  <div className="p-3 bg-background/30 rounded-lg border border-border">
+                    <p className="text-sm text-foreground">{responseJson.riskAnalysis.summary}</p>
+                  </div>
+                )}
+
                 <div className="space-y-3">
-                  {mockRiskAnalysis.risks.map((risk, index) => {
+                  {responseJson.riskAnalysis.risks && responseJson.riskAnalysis.risks.map((risk: any, index: number) => {
                     const riskData = getRiskBadge(risk.type);
                     return (
                       <div
@@ -257,9 +298,16 @@ export default function DraftContracts() {
                             <p className="text-xs text-muted-foreground mt-1">
                               {risk.description}
                             </p>
-                            <span className="text-xs text-primary mt-1 block">
-                              {risk.location}
-                            </span>
+                            {risk.location && (
+                              <span className="text-xs text-primary mt-1 block">
+                                {risk.location}
+                              </span>
+                            )}
+                            {risk.recommendation && (
+                              <p className="text-xs text-green-400 mt-2 font-medium">
+                                Recommendation: {risk.recommendation}
+                              </p>
+                            )}
                           </div>
                           <Badge variant="outline" className={`${riskData.class} text-xs`}>
                             {risk.type}
@@ -289,31 +337,31 @@ export default function DraftContracts() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const text = JSON.stringify(responseJson, null, 2);
-                        navigator.clipboard.writeText(text);
-                        toast({ title: "Copied", description: "JSON copied to clipboard" });
+                        const contractText = formatContractForExport(responseJson);
+                        navigator.clipboard.writeText(contractText);
+                        toast({ title: "Copied", description: "Contract copied to clipboard" });
                       }}
                     >
                       <Copy className="w-4 h-4 mr-2" />
-                      Copy
+                      Copy Contract
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const content = JSON.stringify(responseJson, null, 2);
-                        const blob = new Blob([content], { type: "application/json" });
+                        const contractText = formatContractForExport(responseJson);
+                        const blob = new Blob([contractText], { type: "text/plain" });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        const name = (responseJson?.contract_title || "contract-draft").toString().replace(/\s+/g, "-");
-                        a.download = `${name}.json`;
+                        const name = (responseJson?.contractTitle || "contract-draft").toString().replace(/\s+/g, "-");
+                        a.download = `${name}.txt`;
                         a.click();
                         URL.revokeObjectURL(url);
                       }}
                     >
                       <Download className="w-4 h-4 mr-2" />
-                      Export
+                      Export Contract
                     </Button>
                   </div>
                 )}
@@ -321,18 +369,104 @@ export default function DraftContracts() {
             </CardHeader>
             <CardContent>
               {responseJson ? (
-                <div className="prose prose-invert max-w-none bg-background/50 p-6 rounded-lg border border-border">
-                  <pre className="whitespace-pre-wrap font-mono text-sm text-foreground">
-                    {JSON.stringify(responseJson, null, 2)}
-                  </pre>
+                <div className="space-y-6">
+                  {/* Contract Header */}
+                  <div className="bg-background/50 p-6 rounded-lg border border-border">
+                    <h2 className="text-2xl font-bold text-foreground mb-2">
+                      {responseJson.contractTitle}
+                    </h2>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                      <div>
+                        <span className="font-medium">Type:</span> {responseJson.contractType}
+                      </div>
+                      <div>
+                        <span className="font-medium">Generated:</span> {new Date(responseJson.generatedAt).toLocaleDateString()}
+                      </div>
+                      <div>
+                        <span className="font-medium">Party A:</span> {responseJson.partyA}
+                      </div>
+                      <div>
+                        <span className="font-medium">Party B:</span> {responseJson.partyB}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preamble */}
+                  {responseJson.preamble && (
+                    <div className="bg-background/30 p-4 rounded-lg border border-border">
+                      <h3 className="text-lg font-semibold text-foreground mb-3">Preamble</h3>
+                      <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+                        {responseJson.preamble}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Contract Sections */}
+                  {responseJson.sections && responseJson.sections.length > 0 && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-foreground">Contract Terms</h3>
+                      {responseJson.sections.map((section: any, index: number) => (
+                        <div key={index} className="bg-background/30 p-4 rounded-lg border border-border">
+                          <h4 className="text-md font-semibold text-foreground mb-3">
+                            {section.sectionNumber}. {section.title}
+                          </h4>
+                          <div className="text-foreground whitespace-pre-wrap leading-relaxed">
+                            {section.content}
+                          </div>
+                          {section.subsections && section.subsections.length > 0 && (
+                            <ul className="mt-3 ml-4 space-y-1">
+                              {section.subsections.map((subsection: string, subIndex: number) => (
+                                <li key={subIndex} className="text-muted-foreground text-sm">
+                                  • {subsection}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Conclusion */}
+                  {responseJson.conclusion && (
+                    <div className="bg-background/30 p-4 rounded-lg border border-border">
+                      <h3 className="text-lg font-semibold text-foreground mb-3">Signatures</h3>
+                      <div className="text-foreground whitespace-pre-wrap leading-relaxed">
+                        {responseJson.conclusion}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contract Metadata */}
+                  <div className="bg-background/50 p-4 rounded-lg border border-border">
+                    <h3 className="text-lg font-semibold text-foreground mb-3">Contract Details</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">Effective Date:</span>
+                        <div className="text-foreground">{responseJson.effectiveDate}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Expiration Date:</span>
+                        <div className="text-foreground">{responseJson.expirationDate}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Jurisdiction:</span>
+                        <div className="text-foreground">{responseJson.jurisdiction}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Governing Law:</span>
+                        <div className="text-foreground">{responseJson.governingLaw}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-96 text-center">
                   <div className="space-y-4">
                     <FileText className="w-16 h-16 text-muted-foreground mx-auto" />
                     <div>
-                      <h3 className="text-lg font-medium text-foreground">No Output Yet</h3>
-                      <p className="text-muted-foreground">Use the form on the left and generate to see JSON output here.</p>
+                      <h3 className="text-lg font-medium text-foreground">No Contract Generated Yet</h3>
+                      <p className="text-muted-foreground">Fill out the form on the left and click generate to create your contract.</p>
                     </div>
                   </div>
                 </div>

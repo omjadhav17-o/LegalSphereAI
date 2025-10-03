@@ -1,47 +1,95 @@
 package com.contract.Backend.Controller;
 
-import com.contract.Backend.DTO.ContractRequest;
-import com.contract.Backend.DTO.ContractResponse;
-import com.contract.Backend.Service.ContractDraftingService;
-import lombok.RequiredArgsConstructor;
+import com.contract.Backend.DTO.ContractDraftRequest;
+import com.contract.Backend.DTO.ContractDraftResponse;
+import com.contract.Backend.Service.ContractService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 
+import java.util.HashMap;
+import java.util.Map;
 
+/**
+ * REST Controller for contract-related operations
+ */
 @RestController
 @RequestMapping("/api/v1/contracts")
-@RequiredArgsConstructor
+@Validated
 @Slf4j
-@CrossOrigin(origins = "*") // Configure appropriately for production
 public class ContractController {
 
-    private final ContractDraftingService contractDraftingService;
+    private final ContractService contractService;
 
+    public ContractController(ContractService contractService) {
+        this.contractService = contractService;
+    }
+
+    /**
+     * Generate a contract draft based on user input
+     * 
+     * @param request Contract draft request containing type, parties, and prompt
+     * @return Structured contract response with formatted content
+     */
     @PostMapping("/draft")
-    public ResponseEntity<ContractResponse> draftContract(
-             @RequestBody ContractRequest request) {
-
-//        log.info("Received contract drafting request: {}", request.getPrompt());
-
+    public ResponseEntity<?> generateContractDraft( @RequestBody ContractDraftRequest request) {
         try {
-            ContractResponse response = contractDraftingService.draftContract(request);
-            return ResponseEntity.ok(response);
 
+            
+            // Generate the contract draft using AI service
+            ContractDraftResponse response = contractService.generateContractDraft(request);
+            
+
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (IllegalArgumentException e) {
+
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse("Invalid request parameters", e.getMessage()));
+                    
         } catch (Exception e) {
-//            log.error("Error processing contract request", e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ContractResponse.builder()
-                            .rawContent("Error: " + e.getMessage())
-                            .build());
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Internal server error", "Failed to generate contract draft"));
         }
     }
 
+    /**
+     * Health check endpoint for the contract service
+     */
     @GetMapping("/health")
-    public ResponseEntity<String> health() {
-        return ResponseEntity.ok("Contract Drafting API is running");
+    public ResponseEntity<Map<String, String>> healthCheck() {
+        Map<String, String> response = new HashMap<>();
+        response.put("status", "UP");
+        response.put("service", "Contract Service");
+        response.put("timestamp", java.time.LocalDateTime.now().toString());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get supported contract types
+     */
+    @GetMapping("/types")
+    public ResponseEntity<Map<String, Object>> getSupportedContractTypes() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("supportedTypes", new String[]{"NDA", "Service Agreement", "Employment Contract", "Consulting Agreement"});
+        response.put("defaultType", "NDA");
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Create standardized error response
+     */
+    private Map<String, Object> createErrorResponse(String error, String message) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("error", error);
+        errorResponse.put("message", message);
+        errorResponse.put("timestamp", java.time.LocalDateTime.now().toString());
+        errorResponse.put("status", "error");
+        return errorResponse;
     }
 }
