@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,48 +12,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
   AlertTriangle,
-  CheckCircle,
   FileText,
-  Send,
   Download,
   Copy,
   Wand2,
   Shield,
   Clock,
-  Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const mockRiskAnalysis = {
-  overallRisk: "medium",
-  risks: [
-    {
-      type: "high",
-      title: "Unlimited Liability Clause",
-      description: "Contract contains unlimited liability terms which could expose company to significant financial risk.",
-      location: "Section 8.2"
-    },
-    {
-      type: "medium", 
-      title: "Termination Notice Period",
-      description: "30-day termination notice may be insufficient for critical vendor relationships.",
-      location: "Section 12.1"
-    },
-    {
-      type: "low",
-      title: "Jurisdiction Clause",
-      description: "Governing law clause specifies foreign jurisdiction.",
-      location: "Section 15.3"
-    }
-  ]
-};
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
 export default function DraftContracts() {
   const [prompt, setPrompt] = useState("");
@@ -61,43 +31,53 @@ export default function DraftContracts() {
   const [partyA, setPartyA] = useState("");
   const [partyB, setPartyB] = useState("");
   const [responseJson, setResponseJson] = useState<any | null>(null);
-  const [generatedContract, setGeneratedContract] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState("");
   const { toast } = useToast();
+
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: undefined,
+    editorProps: {
+      attributes: {
+        class:
+          "prose prose-sm max-w-none p-4 bg-background/30 rounded-lg border border-border focus:outline-none",
+      },
+    },
+  });
+
+  useEffect(() => {
+    if (responseJson && editor) {
+      const doc = buildTipTapDocFromResponseJson(responseJson);
+      editor.commands.setContent(doc);
+    }
+  }, [responseJson, editor]);
 
   const formatContractForExport = (contractData: any) => {
     let contractText = `${contractData.contractTitle}\n`;
-    contractText += `${'='.repeat(contractData.contractTitle.length)}\n\n`;
-    
+    contractText += `${"=".repeat(contractData.contractTitle.length)}\n\n`;
     contractText += `Contract Type: ${contractData.contractType}\n`;
     contractText += `Party A: ${contractData.partyA}\n`;
     contractText += `Party B: ${contractData.partyB}\n`;
     contractText += `Generated: ${new Date(contractData.generatedAt).toLocaleDateString()}\n`;
     contractText += `Effective Date: ${contractData.effectiveDate}\n`;
     contractText += `Expiration Date: ${contractData.expirationDate}\n\n`;
-    
     if (contractData.preamble) {
-      contractText += `PREAMBLE\n${'='.repeat(8)}\n${contractData.preamble}\n\n`;
+      contractText += `PREAMBLE\n${"=".repeat(8)}\n${contractData.preamble}\n\n`;
     }
-    
     if (contractData.sections && contractData.sections.length > 0) {
-      contractText += `CONTRACT TERMS\n${'='.repeat(13)}\n\n`;
+      contractText += `CONTRACT TERMS\n${"=".repeat(13)}\n\n`;
       contractData.sections.forEach((section: any) => {
         contractText += `${section.sectionNumber}. ${section.title}\n`;
-        contractText += `${'-'.repeat(section.title.length + 3)}\n`;
+        contractText += `${"-".repeat(section.title.length + 3)}\n`;
         contractText += `${section.content}\n\n`;
       });
     }
-    
     if (contractData.conclusion) {
-      contractText += `SIGNATURES\n${'='.repeat(10)}\n${contractData.conclusion}\n\n`;
+      contractText += `SIGNATURES\n${"=".repeat(10)}\n${contractData.conclusion}\n\n`;
     }
-    
-    contractText += `GOVERNING LAW AND JURISDICTION\n${'='.repeat(30)}\n`;
+    contractText += `GOVERNING LAW AND JURISDICTION\n${"=".repeat(30)}\n`;
     contractText += `Jurisdiction: ${contractData.jurisdiction}\n`;
     contractText += `Governing Law: ${contractData.governingLaw}\n`;
-    
     return contractText;
   };
 
@@ -117,12 +97,7 @@ export default function DraftContracts() {
       const res = await fetch(`${baseUrl}/api/v1/contracts/draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          contractType,
-          partyA,
-          partyB,
-        }),
+        body: JSON.stringify({ prompt, contractType, partyA, partyB }),
       });
 
       if (!res.ok) {
@@ -131,36 +106,163 @@ export default function DraftContracts() {
 
       const data = await res.json();
       setResponseJson(data);
-      setGeneratedContract("");
-      toast({
-        title: "Draft Generated",
-        description: "Received contract JSON from backend.",
-      });
+      toast({ title: "Draft Generated", description: "Received contract JSON from backend." });
     } catch (err: any) {
-      toast({
-        title: "Generation Failed",
-        description: err?.message || "An error occurred while generating the draft.",
-        variant: "destructive",
-      });
+      toast({ title: "Generation Failed", description: err?.message || "An error occurred while generating the draft.", variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleSendToDepartment = () => {
-    if (!selectedDepartment) {
-      toast({
-        title: "Select Department",
-        description: "Please select a department to send the contract to.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const Toolbar = () => (
+    <div className="flex flex-wrap items-center gap-2 mb-2">
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive("bold") ? "bg-muted" : ""}>Bold</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleItalic().run()} className={editor?.isActive("italic") ? "bg-muted" : ""}>Italic</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleStrike().run()} className={editor?.isActive("strike") ? "bg-muted" : ""}>Strike</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} className={editor?.isActive("heading", { level: 1 }) ? "bg-muted" : ""}>H1</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className={editor?.isActive("heading", { level: 2 }) ? "bg-muted" : ""}>H2</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} className={editor?.isActive("heading", { level: 3 }) ? "bg-muted" : ""}>H3</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleBulletList().run()} className={editor?.isActive("bulletList") ? "bg-muted" : ""}>Bulleted List</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleOrderedList().run()} className={editor?.isActive("orderedList") ? "bg-muted" : ""}>Numbered List</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().toggleBlockquote().run()} className={editor?.isActive("blockquote") ? "bg-muted" : ""}>Quote</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().setHorizontalRule().run()}>HR</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().undo().run()}>Undo</Button>
+      <Button variant="outline" size="sm" onClick={() => editor?.chain().focus().redo().run()}>Redo</Button>
+    </div>
+  );
 
-    toast({
-      title: "Contract Sent",
-      description: `Contract template has been sent to ${selectedDepartment} department.`,
-    });
+  const handleCopyFromEditor = () => {
+    if (!editor) return;
+    const text = editor.getText();
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: "Editor content copied to clipboard" });
+  };
+
+  const buildTipTapDocFromResponseJson = (contractData: any) => {
+    const content: any[] = [];
+    if (contractData.contractTitle) {
+      content.push({ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: contractData.contractTitle }] });
+    }
+    const metaLines: string[] = [];
+    if (contractData.contractType) metaLines.push(`Contract Type: ${contractData.contractType}`);
+    if (contractData.partyA) metaLines.push(`Party A: ${contractData.partyA}`);
+    if (contractData.partyB) metaLines.push(`Party B: ${contractData.partyB}`);
+    if (contractData.effectiveDate) metaLines.push(`Effective Date: ${contractData.effectiveDate}`);
+    if (contractData.expirationDate) metaLines.push(`Expiration Date: ${contractData.expirationDate}`);
+    if (contractData.jurisdiction) metaLines.push(`Jurisdiction: ${contractData.jurisdiction}`);
+    if (contractData.governingLaw) metaLines.push(`Governing Law: ${contractData.governingLaw}`);
+    metaLines.forEach((line) => content.push({ type: "paragraph", content: [{ type: "text", text: line }] }));
+    content.push({ type: "horizontalRule" });
+    if (contractData.preamble) {
+      content.push({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Preamble" }] });
+      content.push({ type: "paragraph", content: [{ type: "text", text: contractData.preamble }] });
+    }
+    if (contractData.sections && Array.isArray(contractData.sections)) {
+      content.push({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Contract Terms" }] });
+      for (const section of contractData.sections) {
+        content.push({ type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: `${section.sectionNumber}. ${section.title}` }] });
+        if (section.content) content.push({ type: "paragraph", content: [{ type: "text", text: section.content }] });
+        if (section.subsections && Array.isArray(section.subsections) && section.subsections.length) {
+          content.push({ type: "bulletList", content: section.subsections.map((sub: string) => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: sub }] }] })) });
+        }
+      }
+    }
+    if (contractData.conclusion) {
+      content.push({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Signatures" }] });
+      content.push({ type: "paragraph", content: [{ type: "text", text: contractData.conclusion }] });
+    }
+    return { type: "doc", content };
+  };
+
+  const tiptapJsonToDocx = (docJson: any) => {
+    const paragraphs: Paragraph[] = [];
+    const toTextRuns = (node: any): TextRun[] => {
+      if (!node?.content) return [];
+      return node.content.filter((c: any) => c.type === "text").map((t: any) => new TextRun({
+        text: t.text || "",
+        bold: !!t.marks?.some((m: any) => m.type === "bold"),
+        italics: !!t.marks?.some((m: any) => m.type === "italic"),
+        strike: !!t.marks?.some((m: any) => m.type === "strike"),
+      }));
+    };
+    const walk = (node: any) => {
+      if (!node) return;
+      switch (node.type) {
+        case "heading": {
+          const level = node.attrs?.level || 1;
+          const text = (node.content || []).map((c: any) => c.text || "").join("");
+          let headingLevel = HeadingLevel.HEADING_1;
+          if (level === 1) headingLevel = HeadingLevel.HEADING_1;
+          else if (level === 2) headingLevel = HeadingLevel.HEADING_2;
+          else if (level === 3) headingLevel = HeadingLevel.HEADING_3;
+          else headingLevel = HeadingLevel.HEADING_4 as any;
+          paragraphs.push(new Paragraph({ text, heading: headingLevel }));
+          break;
+        }
+        case "paragraph": {
+          const runs = toTextRuns(node);
+          paragraphs.push(new Paragraph({ children: runs.length ? runs : [new TextRun("")] }));
+          break;
+        }
+        case "bulletList": {
+          (node.content || []).forEach((li: any) => {
+            const paraNode = li.content?.find((n: any) => n.type === "paragraph");
+            const runs = toTextRuns(paraNode || {});
+            paragraphs.push(new Paragraph({ children: runs, bullet: { level: 0 } }));
+          });
+          break;
+        }
+        case "orderedList": {
+          let index = 1;
+          (node.content || []).forEach((li: any) => {
+            const paraNode = li.content?.find((n: any) => n.type === "paragraph");
+            const text = (paraNode?.content || []).map((c: any) => c.text || "").join("");
+            paragraphs.push(new Paragraph({ text: `${index}. ${text}` }));
+            index++;
+          });
+          break;
+        }
+        case "blockquote": {
+          const paraNode = (node.content || []).find((n: any) => n.type === "paragraph");
+          const runs = toTextRuns(paraNode || {});
+          paragraphs.push(new Paragraph({ children: runs }));
+          break;
+        }
+        case "horizontalRule": {
+          paragraphs.push(new Paragraph(""));
+          break;
+        }
+        default: {
+          if (Array.isArray(node.content)) node.content.forEach(walk);
+        }
+      }
+    };
+    if (Array.isArray(docJson?.content)) docJson.content.forEach(walk);
+    const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+    return doc;
+  };
+
+  const handleCopyFromEditorClick = () => {
+    handleCopyFromEditor();
+  };
+
+  const handleExportDocx = async () => {
+    if (!editor) return;
+    try {
+      const tiptapJson = editor.getJSON();
+      const doc = tiptapJsonToDocx(tiptapJson);
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const name = (responseJson?.contractTitle || "contract-draft").toString().replace(/\s+/g, "-");
+      a.download = `${name}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Exported", description: "DOCX file downloaded" });
+    } catch (e: any) {
+      toast({ title: "Export Failed", description: e?.message || "Could not export DOCX", variant: "destructive" });
+    }
   };
 
   const getRiskBadge = (riskLevel: string) => {
@@ -176,13 +278,10 @@ export default function DraftContracts() {
     <div className="p-6 space-y-6">
       <div className="animate-fade-in">
         <h1 className="text-3xl font-bold text-foreground mb-2">Draft Contracts</h1>
-        <p className="text-muted-foreground">
-          Generate and customize legal contracts with AI assistance and real-time risk analysis
-        </p>
+        <p className="text-muted-foreground">Generate and customize legal contracts with AI assistance and real-time risk analysis</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Generation Panel */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="card-professional">
             <CardHeader>
@@ -193,9 +292,7 @@ export default function DraftContracts() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">
-                  Contract Type
-                </label>
+                <label className="text-sm font-medium text-foreground mb-2 block">Contract Type</label>
                 <Select value={contractType} onValueChange={setContractType}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select contract type" />
@@ -209,40 +306,20 @@ export default function DraftContracts() {
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-2 block">Party A</label>
-                  <Input
-                    placeholder="e.g., Tech Innovations Inc."
-                    value={partyA}
-                    onChange={(e) => setPartyA(e.target.value)}
-                  />
+                  <Input placeholder="e.g., Tech Innovations Inc." value={partyA} onChange={(e) => setPartyA(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-2 block">Party B</label>
-                  <Input
-                    placeholder="e.g., Digital Solutions LLC"
-                    value={partyB}
-                    onChange={(e) => setPartyB(e.target.value)}
-                  />
+                  <Input placeholder="e.g., Digital Solutions LLC" value={partyB} onChange={(e) => setPartyB(e.target.value)} />
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">
-                  Contract Description
-                </label>
-                <Textarea
-                  placeholder="Describe the contract requirements, key terms, parties involved, and any specific clauses needed..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={6}
-                  className="bg-background/50"
-                />
+                <label className="text-sm font-medium text-foreground mb-2 block">Contract Description</label>
+                <Textarea placeholder="Describe the contract requirements, key terms, parties involved, and any specific clauses needed..." value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={6} className="bg-background/50" />
               </div>
 
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="w-full bg-primary hover:bg-primary/90"
-              >
+              <Button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-primary hover:bg-primary/90">
                 {isGenerating ? (
                   <>
                     <Clock className="w-4 h-4 mr-2 animate-spin" />
@@ -258,7 +335,6 @@ export default function DraftContracts() {
             </CardContent>
           </Card>
 
-          {/* Risk Analysis */}
           {responseJson && responseJson.riskAnalysis && (
             <Card className="card-professional">
               <CardHeader>
@@ -285,33 +361,16 @@ export default function DraftContracts() {
                   {responseJson.riskAnalysis.risks && responseJson.riskAnalysis.risks.map((risk: any, index: number) => {
                     const riskData = getRiskBadge(risk.type);
                     return (
-                      <div
-                        key={index}
-                        className="p-3 border border-border rounded-lg bg-background/30"
-                      >
+                      <div key={index} className="p-3 border border-border rounded-lg bg-background/30">
                         <div className="flex items-start gap-2 mb-2">
                           <riskData.icon className="w-4 h-4 mt-0.5 text-current" />
                           <div className="flex-1">
-                            <h4 className="font-medium text-sm text-foreground">
-                              {risk.title}
-                            </h4>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {risk.description}
-                            </p>
-                            {risk.location && (
-                              <span className="text-xs text-primary mt-1 block">
-                                {risk.location}
-                              </span>
-                            )}
-                            {risk.recommendation && (
-                              <p className="text-xs text-green-400 mt-2 font-medium">
-                                Recommendation: {risk.recommendation}
-                              </p>
-                            )}
+                            <h4 className="font-medium text-sm text-foreground">{risk.title}</h4>
+                            <p className="text-xs text-muted-foreground mt-1">{risk.description}</p>
+                            {risk.location && (<span className="text-xs text-primary mt-1 block">{risk.location}</span>)}
+                            {risk.recommendation && (<p className="text-xs text-green-400 mt-2 font-medium">Recommendation: {risk.recommendation}</p>)}
                           </div>
-                          <Badge variant="outline" className={`${riskData.class} text-xs`}>
-                            {risk.type}
-                          </Badge>
+                          <Badge variant="outline" className={`${riskData.class} text-xs`}>{risk.type}</Badge>
                         </div>
                       </div>
                     );
@@ -322,7 +381,6 @@ export default function DraftContracts() {
           )}
         </div>
 
-        {/* Output Review */}
         <div className="lg:col-span-2">
           <Card className="card-professional">
             <CardHeader>
@@ -333,35 +391,13 @@ export default function DraftContracts() {
                 </CardTitle>
                 {responseJson && (
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const contractText = formatContractForExport(responseJson);
-                        navigator.clipboard.writeText(contractText);
-                        toast({ title: "Copied", description: "Contract copied to clipboard" });
-                      }}
-                    >
+                    <Button variant="outline" size="sm" onClick={handleCopyFromEditorClick} disabled={!editor}>
                       <Copy className="w-4 h-4 mr-2" />
                       Copy Contract
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const contractText = formatContractForExport(responseJson);
-                        const blob = new Blob([contractText], { type: "text/plain" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        const name = (responseJson?.contractTitle || "contract-draft").toString().replace(/\s+/g, "-");
-                        a.download = `${name}.txt`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                    >
+                    <Button variant="outline" size="sm" onClick={handleExportDocx} disabled={!editor}>
                       <Download className="w-4 h-4 mr-2" />
-                      Export Contract
+                      Export DOCX
                     </Button>
                   </div>
                 )}
@@ -370,94 +406,9 @@ export default function DraftContracts() {
             <CardContent>
               {responseJson ? (
                 <div className="space-y-6">
-                  {/* Contract Header */}
-                  <div className="bg-background/50 p-6 rounded-lg border border-border">
-                    <h2 className="text-2xl font-bold text-foreground mb-2">
-                      {responseJson.contractTitle}
-                    </h2>
-                    <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                      <div>
-                        <span className="font-medium">Type:</span> {responseJson.contractType}
-                      </div>
-                      <div>
-                        <span className="font-medium">Generated:</span> {new Date(responseJson.generatedAt).toLocaleDateString()}
-                      </div>
-                      <div>
-                        <span className="font-medium">Party A:</span> {responseJson.partyA}
-                      </div>
-                      <div>
-                        <span className="font-medium">Party B:</span> {responseJson.partyB}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Preamble */}
-                  {responseJson.preamble && (
-                    <div className="bg-background/30 p-4 rounded-lg border border-border">
-                      <h3 className="text-lg font-semibold text-foreground mb-3">Preamble</h3>
-                      <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-                        {responseJson.preamble}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Contract Sections */}
-                  {responseJson.sections && responseJson.sections.length > 0 && (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-foreground">Contract Terms</h3>
-                      {responseJson.sections.map((section: any, index: number) => (
-                        <div key={index} className="bg-background/30 p-4 rounded-lg border border-border">
-                          <h4 className="text-md font-semibold text-foreground mb-3">
-                            {section.sectionNumber}. {section.title}
-                          </h4>
-                          <div className="text-foreground whitespace-pre-wrap leading-relaxed">
-                            {section.content}
-                          </div>
-                          {section.subsections && section.subsections.length > 0 && (
-                            <ul className="mt-3 ml-4 space-y-1">
-                              {section.subsections.map((subsection: string, subIndex: number) => (
-                                <li key={subIndex} className="text-muted-foreground text-sm">
-                                  • {subsection}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Conclusion */}
-                  {responseJson.conclusion && (
-                    <div className="bg-background/30 p-4 rounded-lg border border-border">
-                      <h3 className="text-lg font-semibold text-foreground mb-3">Signatures</h3>
-                      <div className="text-foreground whitespace-pre-wrap leading-relaxed">
-                        {responseJson.conclusion}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Contract Metadata */}
-                  <div className="bg-background/50 p-4 rounded-lg border border-border">
-                    <h3 className="text-lg font-semibold text-foreground mb-3">Contract Details</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium text-muted-foreground">Effective Date:</span>
-                        <div className="text-foreground">{responseJson.effectiveDate}</div>
-                      </div>
-                      <div>
-                        <span className="font-medium text-muted-foreground">Expiration Date:</span>
-                        <div className="text-foreground">{responseJson.expirationDate}</div>
-                      </div>
-                      <div>
-                        <span className="font-medium text-muted-foreground">Jurisdiction:</span>
-                        <div className="text-foreground">{responseJson.jurisdiction}</div>
-                      </div>
-                      <div>
-                        <span className="font-medium text-muted-foreground">Governing Law:</span>
-                        <div className="text-foreground">{responseJson.governingLaw}</div>
-                      </div>
-                    </div>
+                  <div className="space-y-2">
+                    <Toolbar />
+                    <EditorContent editor={editor} />
                   </div>
                 </div>
               ) : (
