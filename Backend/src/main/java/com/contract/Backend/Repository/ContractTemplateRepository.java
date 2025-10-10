@@ -1,0 +1,28 @@
+package com.contract.Backend.Repository;
+import com.contract.Backend.model.ContractRequest;
+import com.contract.Backend.model.ContractTemplate;
+import com.contract.Backend.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+import java.util.Arrays;
+import java.util.List;
+
+
+    @Repository
+    public interface ContractTemplateRepository extends JpaRepository<ContractTemplate, Long> {
+
+        List<ContractTemplate> findByIsActiveTrue();
+
+        List<ContractTemplate> findByContractType(String contractType);
+
+        @Query("SELECT t FROM ContractTemplate t WHERE t.isActive = true ORDER BY t.timesUsed DESC")
+        List<ContractTemplate> findActiveTemplatesOrderedByUsage();
+
+        @Query("SELECT t FROM ContractTemplate t WHERE t.isActive = true ORDER BY t.createdAt DESC")
+        List<ContractTemplate> findActiveTemplatesOrderedByDate();
+    }
+
+
+
