@@ -6,6 +6,7 @@ import com.contract.Backend.Repository.ContractTemplateRepository;
 import com.contract.Backend.Repository.UserRepository;
 import com.contract.Backend.model.ContractTemplate;
 import com.contract.Backend.model.User;
+import java.util.Base64;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,14 +33,21 @@ public class TemplateLibraryService {
                 .contractType(request.getContractType())
                 .description(request.getDescription())
                 .content(request.getContent())
-                .createdBy(user)
                 .timesUsed(0)
-                .isActive(true)
+                .createdBy(user)
                 .build();
 
-        ContractTemplate saved = templateRepository.save(template);
-        log.info("Saved template: {} by user: {}", saved.getId(), username);
+        if (request.getDocxBase64() != null && !request.getDocxBase64().isBlank()) {
+            try {
+                byte[] bytes = Base64.getDecoder().decode(request.getDocxBase64());
+                template.setDocxBytes(bytes);
+            } catch (Exception e) {
+                log.warn("Failed to decode docxBase64 for template: {}", e.getMessage());
+            }
+        }
 
+        ContractTemplate saved = templateRepository.save(template);
+        log.info("Saved template {} by user {}", saved.getId(), username);
         return mapToResponse(saved);
     }
 
@@ -98,8 +106,26 @@ public class TemplateLibraryService {
                 .description(template.getDescription())
                 .content(template.getContent())
                 .timesUsed(template.getTimesUsed())
+                .hasDocx(template.getDocxBytes() != null && template.getDocxBytes().length > 0)
                 .createdAt(template.getCreatedAt())
                 .updatedAt(template.getUpdatedAt())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] getTemplateDocx(Long id) {
+        ContractTemplate template = templateRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Template not found"));
+        if (template.getDocxBytes() == null || template.getDocxBytes().length == 0) {
+            throw new RuntimeException("DOCX not available for this template");
+        }
+        return template.getDocxBytes();
+    }
+
+    @Transactional(readOnly = true)
+    public String getTemplateTitle(Long id) {
+        ContractTemplate template = templateRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Template not found"));
+        return template.getTitle();
     }
 }

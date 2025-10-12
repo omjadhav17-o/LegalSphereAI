@@ -5,6 +5,8 @@ import com.contract.Backend.DTO.TemplateResponse;
 import com.contract.Backend.Service.TemplateLibraryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -60,5 +62,15 @@ public class TemplateLibraryController {
     public ResponseEntity<Void> incrementUsage(@PathVariable Long id) {
         templateService.incrementUsage(id);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/docx")
+    public ResponseEntity<byte[]> downloadTemplateDocx(@PathVariable Long id) {
+        byte[] bytes = templateLibraryService.getTemplateDocx(id);
+        String title = templateLibraryService.getTemplateTitle(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + title + ".docx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .body(bytes);
     }
 }

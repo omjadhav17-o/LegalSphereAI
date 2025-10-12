@@ -1,27 +1,29 @@
 package com.contract.Backend.DTO;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.validation.constraints.NotBlank;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SaveTemplateRequest {
+public class SaveDraftRequest {
 
-    @NotBlank(message = "Title is required")
+    @NotBlank
     private String title;
 
-    @NotBlank(message = "Contract type is required")
+    @NotBlank
     private String contractType;
 
-    private String description;
-
-    @NotBlank(message = "Content is required")
+    // JSON string (TipTap doc or structured contract JSON)
+    @NotBlank
     private String content;
+
+    // Optional: link to a specific request
+    private Long requestId;
     private String docxBase64; // optional base64-encoded DOCX bytes
 }

@@ -25,6 +25,11 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
+// API constants for saving drafts
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const USER_HEADER = "X-USER";
+const LEGAL_USERNAME = "legal"; // hard-coded for testing
+
 export default function DraftContracts() {
   const [prompt, setPrompt] = useState("");
   const [contractType, setContractType] = useState("NDA");
@@ -254,14 +259,74 @@ export default function DraftContracts() {
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      // Define name for the exported docx
       const name = (responseJson?.contractTitle || "contract-draft").toString().replace(/\s+/g, "-");
+      a.href = url;
       a.download = `${name}.docx`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Exported", description: "DOCX file downloaded" });
     } catch (e: any) {
       toast({ title: "Export Failed", description: e?.message || "Could not export DOCX", variant: "destructive" });
+    }
+  };
+
+  // Helper to convert Blob to Base64 string
+  const blobToBase64 = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl?.split(",")[1] || "";
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  // Save editor content as a Draft via backend API
+  const handleSaveDraft = async () => {
+    if (!editor) {
+      toast({ title: "Error", description: "Editor is not ready", variant: "destructive" });
+      return;
+    }
+    try {
+      const tiptapJson = editor.getJSON();
+      const doc = tiptapJsonToDocx(tiptapJson);
+      const blob = await Packer.toBlob(doc);
+      const docxBase64 = await blobToBase64(blob);
+
+      // Also download DOCX locally
+      const name = (responseJson?.contractTitle || "contract-draft").toString().replace(/\s+/g, "-");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      const payload = {
+        title: (responseJson?.contractTitle || "Draft Contract").toString(),
+        contractType,
+        content: JSON.stringify(tiptapJson),
+        docxBase64,
+      };
+      const res = await fetch(`${API_BASE}/api/v1/drafts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [USER_HEADER]: LEGAL_USERNAME,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to save draft");
+      }
+      const data = await res.json();
+      toast({ title: "Saved", description: `Draft saved (ID: ${data?.id || "unknown"}) and DOCX downloaded` });
+    } catch (e: any) {
+      toast({ title: "Save Failed", description: e?.message || "Could not save draft", variant: "destructive" });
     }
   };
 
@@ -398,6 +463,9 @@ export default function DraftContracts() {
                     <Button variant="outline" size="sm" onClick={handleExportDocx} disabled={!editor}>
                       <Download className="w-4 h-4 mr-2" />
                       Export DOCX
+                    </Button>
+                    <Button variant="default" size="sm" onClick={handleSaveDraft} disabled={!editor}>
+                      Save Draft
                     </Button>
                   </div>
                 )}

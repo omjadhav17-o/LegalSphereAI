@@ -68,9 +68,12 @@ public class ContractRequestController {
     @PutMapping("/{id}/status")
     public ResponseEntity<ContractRequestResponse> updateStatus(
             @PathVariable Long id,
-            @RequestParam String status) {
+            @RequestParam("status") String status) {
+        return ResponseEntity.ok(contractRequestService.updateStatus(id, status));
+    }
 
-        ContractRequestResponse response = contractRequestService.updateStatus(id, status);
-        return ResponseEntity.ok(response);
+    @GetMapping("/{id}")
+    public ResponseEntity<ContractRequestResponse> getRequestById(@PathVariable Long id) {
+        return ResponseEntity.ok(contractRequestService.getRequestById(id));
     }
 }

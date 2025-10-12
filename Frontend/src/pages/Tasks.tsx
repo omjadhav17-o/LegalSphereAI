@@ -138,10 +138,22 @@ export default function Tasks() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const { toast } = useToast();
+  // New state for tabs and dialogs
+  const [tab, setTab] = useState("requests");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedRequestDetails, setSelectedRequestDetails] = useState<LegalRequest | null>(null);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [selectedSendRequestId, setSelectedSendRequestId] = useState<number | null>(null);
+  const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
 
   // Replace mock requests with fetched requests
   const [requests, setRequests] = useState<LegalRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+
+  // Drafts state
+  type DraftItem = { id: number; title: string; contractType: string; isFinal?: boolean; requestId?: number | null; createdAt?: string; updatedAt?: string };
+  const [drafts, setDrafts] = useState<DraftItem[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState<boolean>(false);
 
   const mapRequest = (r: any): LegalRequest => ({
     id: r.id,
@@ -193,8 +205,85 @@ export default function Tasks() {
     }
   };
 
+  const fetchMyDrafts = async () => {
+    try {
+      setDraftsLoading(true);
+      const res = await fetch(`${API_BASE}/api/v1/drafts/my`, { headers: { [USER_HEADER]: LEGAL_USERNAME } });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to fetch drafts");
+      }
+      const list = await res.json();
+      const mapped: DraftItem[] = (Array.isArray(list) ? list : []).map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        contractType: d.contractType,
+        isFinal: d.isFinal,
+        requestId: d.requestId ?? null,
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+      }));
+      setDrafts(mapped);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Unable to load drafts", variant: "destructive" });
+    } finally {
+      setDraftsLoading(false);
+    }
+  };
+
+  const openRequestDetails = async (id: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/requests/${id}`, { headers: { [USER_HEADER]: LEGAL_USERNAME } });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to fetch request details");
+      }
+      const data = await res.json();
+      const details = mapRequest(data);
+      setSelectedRequestDetails(details);
+      setDetailsOpen(true);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Could not load request details", variant: "destructive" });
+    }
+  };
+
+  const openSendTemplate = async (requestId: number) => {
+    setSelectedSendRequestId(requestId);
+    setSendDialogOpen(true);
+    if (drafts.length === 0) {
+      await fetchMyDrafts();
+    }
+  };
+
+  const attachDraftToRequest = async () => {
+    if (!selectedSendRequestId || !selectedDraftId) {
+      toast({ title: "Select Draft", description: "Please select a draft to send.", variant: "destructive" });
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/drafts/complete-request/${selectedSendRequestId}?draftId=${selectedDraftId}`, {
+        method: "POST",
+        headers: { [USER_HEADER]: LEGAL_USERNAME },
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to attach draft");
+      }
+      toast({ title: "Template Sent", description: "Draft attached and request marked completed." });
+      // Update request status locally
+      setRequests((prev) => prev.map((r) => (r.id === selectedSendRequestId ? { ...r, status: "completed" } : r)));
+      setSendDialogOpen(false);
+      setSelectedDraftId(null);
+      setSelectedSendRequestId(null);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Could not attach draft", variant: "destructive" });
+    }
+  };
+
   useEffect(() => {
     fetchLegalRequests();
+    // Preload drafts for quick access
+    fetchMyDrafts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -254,7 +343,7 @@ export default function Tasks() {
       <Tabs defaultValue="requests" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="requests">Contract Requests</TabsTrigger>
-          <TabsTrigger value="templates">Template Library</TabsTrigger>
+          <TabsTrigger value="drafts">Drafts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests" className="space-y-6">
@@ -336,10 +425,12 @@ export default function Tasks() {
                           <p className="text-sm text-muted-foreground">{request.description}</p>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm">View Details</Button>
-                          <Button size="sm" onClick={() => handleSendTemplate(1, request.id)}>
-                            <FileText className="w-4 h-4 mr-1" /> Send Template
-                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => openRequestDetails(request.id)}>View Details</Button>
+                          {request.status !== "completed" && (
+                            <Button size="sm" onClick={() => openSendTemplate(request.id)}>
+                              <FileText className="w-4 h-4 mr-1" /> Send Template
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -354,7 +445,100 @@ export default function Tasks() {
             </div>
           )}
         </TabsContent>
+        <TabsContent value="drafts" className="space-y-6">
+          <Card className="card-professional">
+            <CardHeader>
+              <CardTitle>My Drafts</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              {draftsLoading ? (
+                <div className="text-muted-foreground">Loading drafts...</div>
+              ) : drafts.length > 0 ? (
+                <div className="grid gap-4">
+                  {drafts.map((d) => (
+                    <Card key={d.id} className="hover-lift">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-foreground">{d.title}</div>
+                          <div className="text-sm text-muted-foreground">Type: {d.contractType}</div>
+                          {d.createdAt && (
+                            <div className="text-xs text-muted-foreground">Created: {String(d.createdAt).toString()}</div>
+                          )}
+                        </div>
+                        {d.isFinal && (
+                          <Badge className="bg-green-500/10 text-green-500 border-green-500/30">Final</Badge>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-muted-foreground">No drafts found</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Request Details Dialog */}
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedRequestDetails?.title || "Request Details"}</DialogTitle>
+            <DialogDescription>
+              {selectedRequestDetails ? (
+                <div className="space-y-2 text-sm">
+                  <div><strong>Department:</strong> {selectedRequestDetails.department}</div>
+                  <div><strong>Requester:</strong> {selectedRequestDetails.requestor}</div>
+                  {selectedRequestDetails.dueDate && (<div><strong>Due Date:</strong> {selectedRequestDetails.dueDate}</div>)}
+                  <div><strong>Status:</strong> {selectedRequestDetails.status}</div>
+                  <div className="pt-2"><strong>Description:</strong> {selectedRequestDetails.description}</div>
+                  {selectedRequestDetails.requirements && selectedRequestDetails.requirements.length > 0 && (
+                    <div className="pt-2">
+                      <strong>Requirements:</strong>
+                      <ul className="list-disc pl-5">
+                        {selectedRequestDetails.requirements.map((req, idx) => (
+                          <li key={idx}>{req}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-muted-foreground">Loading...</div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Template Dialog */}
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attach Draft to Request</DialogTitle>
+            <DialogDescription>Select a draft to attach and mark the request completed.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Select value={selectedDraftId ? String(selectedDraftId) : undefined} onValueChange={(val) => setSelectedDraftId(Number(val))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a draft" />
+              </SelectTrigger>
+              <SelectContent>
+                {drafts.map((d) => (
+                  <SelectItem key={d.id} value={String(d.id)}>
+                    {d.title} ({d.contractType})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSendDialogOpen(false)}>Cancel</Button>
+              <Button onClick={attachDraftToRequest} disabled={!selectedDraftId}>Send</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -39,6 +39,10 @@ public class ContractDraft {
     @Column(columnDefinition = "jsonb", nullable = false)
     private String content;
 
+    @Lob
+    @Column(name = "docx_bytes")
+    private byte[] docxBytes;
+    
     private Integer version = 1;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -11,14 +11,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TemplateResponse {
+public class DraftResponse {
     private Long id;
     private String title;
     private String contractType;
-    private String description;
     private String content;
-    private Integer timesUsed;
+    private Integer version;
+    private Boolean isFinal;
+    private Long requestId;
     private Boolean hasDocx;
-    private String createdAt;
+    private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

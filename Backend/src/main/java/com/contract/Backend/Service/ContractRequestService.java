@@ -83,6 +83,7 @@ public class ContractRequestService {
                 .collect(Collectors.toList());
     }
 
+
     @Transactional
     public ContractRequestResponse assignRequest(Long requestId, String username) {
         User user = userRepository.findByUsername(username)
@@ -104,11 +105,19 @@ public class ContractRequestService {
     public ContractRequestResponse updateStatus(Long requestId, String status) {
         ContractRequest request = contractRequestRepository.findById(requestId)
                 .orElseThrow(() -> new RuntimeException("Request not found"));
-
         request.setStatus(ContractRequest.RequestStatus.valueOf(status.toUpperCase()));
         ContractRequest updated = contractRequestRepository.save(request);
-
         return mapToResponse(updated);
+    }
+
+
+    // Remove duplicate methods below and add getRequestById
+
+    @Transactional(readOnly = true)
+    public ContractRequestResponse getRequestById(Long id) {
+        ContractRequest request = contractRequestRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Request not found"));
+        return mapToResponse(request);
     }
 
     private ContractRequestResponse mapToResponse(ContractRequest request) {

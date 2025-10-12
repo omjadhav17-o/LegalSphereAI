@@ -34,6 +34,10 @@ public class ContractTemplate {
     @Column(columnDefinition = "jsonb", nullable = false)
     private String content; // Store as JSON string
 
+    @Lob
+    @Column(name = "docx_bytes")
+    private byte[] docxBytes;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
