@@ -23,8 +23,8 @@ public class TemplateLibraryService {
     private final UserRepository userRepository;
 
     @Transactional
-    public TemplateResponse saveTemplate(SaveTemplateRequest request, Long userId) {
-        User user = userRepository.findById(userId)
+    public TemplateResponse saveTemplate(SaveTemplateRequest request, String username) {
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         ContractTemplate template = ContractTemplate.builder()
@@ -38,15 +38,14 @@ public class TemplateLibraryService {
                 .build();
 
         ContractTemplate saved = templateRepository.save(template);
-        log.info("Saved template: {} by user: {}", saved.getId(), userId);
+        log.info("Saved template: {} by user: {}", saved.getId(), username);
 
         return mapToResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public List<TemplateResponse> getAllTemplates() {
-        // Use the @Query method instead
-        return templateRepository.findActiveTemplatesOrderedByUsage()
+        return templateRepository.findByIsActiveTrue()
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -67,7 +66,6 @@ public class TemplateLibraryService {
 
         template.setTimesUsed(template.getTimesUsed() + 1);
         templateRepository.save(template);
-        log.info("Incremented usage count for template: {}", templateId);
     }
 
     @Transactional
@@ -80,8 +78,6 @@ public class TemplateLibraryService {
         template.setContent(request.getContent());
 
         ContractTemplate updated = templateRepository.save(template);
-        log.info("Updated template: {}", id);
-
         return mapToResponse(updated);
     }
 
@@ -92,7 +88,6 @@ public class TemplateLibraryService {
 
         template.setIsActive(false);
         templateRepository.save(template);
-        log.info("Soft deleted template: {}", id);
     }
 
     private TemplateResponse mapToResponse(ContractTemplate template) {
