@@ -1,14 +1,11 @@
 package com.contract.Backend.DTO;
 
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -32,6 +29,7 @@ public class ContractRequestDTO {
     @NotNull(message = "Priority is required")
     private String priority; // LOW, MEDIUM, HIGH
 
+    @Future(message = "Due date must be in the future")
     private LocalDate dueDate;
 
     private List<String> tags;

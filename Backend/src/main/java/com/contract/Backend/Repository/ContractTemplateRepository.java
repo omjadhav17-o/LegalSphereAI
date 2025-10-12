@@ -10,19 +10,12 @@ import java.util.Arrays;
 import java.util.List;
 
 
-    @Repository
-    public interface ContractTemplateRepository extends JpaRepository<ContractTemplate, Long> {
-
-        List<ContractTemplate> findByIsActiveTrue();
-
-        List<ContractTemplate> findByContractType(String contractType);
-
-        @Query("SELECT t FROM ContractTemplate t WHERE t.isActive = true ORDER BY t.timesUsed DESC")
-        List<ContractTemplate> findActiveTemplatesOrderedByUsage();
-
-        @Query("SELECT t FROM ContractTemplate t WHERE t.isActive = true ORDER BY t.createdAt DESC")
-        List<ContractTemplate> findActiveTemplatesOrderedByDate();
-    }
+@Repository
+public interface ContractTemplateRepository extends JpaRepository<ContractTemplate, Long> {
+    List<ContractTemplate> findByIsActiveTrue();
+    List<ContractTemplate> findByContractType(String contractType);
+    List<ContractTemplate> findByIsActiveTrueOrderByTimesUsedDesc();
+}
 
 
 

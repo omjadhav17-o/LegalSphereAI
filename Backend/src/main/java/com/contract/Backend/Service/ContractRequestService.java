@@ -2,6 +2,7 @@ package com.contract.Backend.Service;
 
 import com.contract.Backend.DTO.ContractRequestDTO;
 import com.contract.Backend.DTO.ContractRequestResponse;
+
 import com.contract.Backend.Repository.ContractRequestRepository;
 import com.contract.Backend.Repository.UserRepository;
 import com.contract.Backend.model.ContractRequest;
@@ -23,8 +24,8 @@ public class ContractRequestService {
     private final UserRepository userRepository;
 
     @Transactional
-    public ContractRequestResponse createRequest(ContractRequestDTO dto, Long userId) {
-        User user = userRepository.findById(userId)
+    public ContractRequestResponse createRequest(ContractRequestDTO dto, String username) {
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         ContractRequest request = ContractRequest.builder()
@@ -39,14 +40,14 @@ public class ContractRequestService {
                 .build();
 
         ContractRequest saved = contractRequestRepository.save(request);
-        log.info("Created contract request: {} by user: {}", saved.getId(), userId);
+        log.info("Created contract request: {} by user: {}", saved.getId(), username);
 
         return mapToResponse(saved);
     }
 
     @Transactional(readOnly = true)
-    public List<ContractRequestResponse> getMyRequests(Long userId) {
-        User user = userRepository.findById(userId)
+    public List<ContractRequestResponse> getMyRequests(String username) {
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         return contractRequestRepository.findByRequestedBy(user)
@@ -64,16 +65,8 @@ public class ContractRequestService {
     }
 
     @Transactional(readOnly = true)
-    public List<ContractRequestResponse> getAllRequests() {
-        return contractRequestRepository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<ContractRequestResponse> getAssignedRequests(Long userId) {
-        User user = userRepository.findById(userId)
+    public List<ContractRequestResponse> getAssignedRequests(String username) {
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         return contractRequestRepository.findByAssignedTo(user)
@@ -83,8 +76,8 @@ public class ContractRequestService {
     }
 
     @Transactional
-    public ContractRequestResponse assignRequest(Long requestId, Long userId) {
-        User user = userRepository.findById(userId)
+    public ContractRequestResponse assignRequest(Long requestId, String username) {
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         ContractRequest request = contractRequestRepository.findById(requestId)
@@ -94,7 +87,7 @@ public class ContractRequestService {
         request.setStatus(ContractRequest.RequestStatus.IN_PROGRESS);
 
         ContractRequest updated = contractRequestRepository.save(request);
-        log.info("Assigned request {} to user {}", requestId, userId);
+        log.info("Assigned request {} to user {}", requestId, username);
 
         return mapToResponse(updated);
     }
@@ -108,14 +101,6 @@ public class ContractRequestService {
         ContractRequest updated = contractRequestRepository.save(request);
 
         return mapToResponse(updated);
-    }
-
-    @Transactional(readOnly = true)
-    public ContractRequestResponse getRequestById(Long requestId) {
-        ContractRequest request = contractRequestRepository.findById(requestId)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-
-        return mapToResponse(request);
     }
 
     private ContractRequestResponse mapToResponse(ContractRequest request) {

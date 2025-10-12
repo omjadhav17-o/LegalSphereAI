@@ -22,5 +22,5 @@ public class SaveTemplateRequest {
     private String description;
 
     @NotBlank(message = "Content is required")
-    private String content;
+    private String content; // JSON string of ContractDraftResponse
 }
