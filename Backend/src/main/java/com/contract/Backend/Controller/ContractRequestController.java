@@ -25,18 +25,16 @@ public class ContractRequestController {
     @PostMapping
     public ResponseEntity<ContractRequestResponse> createRequest(
             @Valid @RequestBody ContractRequestDTO request,
-            Authentication authentication) {
+            @RequestHeader("X-USER") String username) {
 
-        String username = authentication.getName();
         ContractRequestResponse response = contractRequestService.createRequest(request, username);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/my-requests")
     public ResponseEntity<List<ContractRequestResponse>> getMyRequests(
-            Authentication authentication) {
+            @RequestHeader("X-USER") String username) {
 
-        String username = authentication.getName();
         List<ContractRequestResponse> requests = contractRequestService.getMyRequests(username);
         return ResponseEntity.ok(requests);
     }
@@ -49,9 +47,7 @@ public class ContractRequestController {
 
     @GetMapping("/assigned")
     public ResponseEntity<List<ContractRequestResponse>> getAssignedRequests(
-            Authentication authentication) {
-
-        String username = authentication.getName();
+            @RequestHeader("X-USER") String username) {
         List<ContractRequestResponse> requests = contractRequestService.getAssignedRequests(username);
         return ResponseEntity.ok(requests);
     }

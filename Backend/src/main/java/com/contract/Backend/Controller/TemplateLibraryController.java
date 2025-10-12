@@ -25,9 +25,7 @@ public class TemplateLibraryController {
     @PostMapping
     public ResponseEntity<TemplateResponse> saveTemplate(
             @Valid @RequestBody SaveTemplateRequest request,
-            Authentication authentication) {
-
-        String username = authentication.getName();
+            @RequestHeader("X-USER") String username) {
         TemplateResponse response = templateService.saveTemplate(request, username);
         return ResponseEntity.ok(response);
     }
