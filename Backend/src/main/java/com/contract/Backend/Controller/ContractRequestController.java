@@ -5,7 +5,6 @@ import com.contract.Backend.DTO.ContractRequestResponse;
 import com.contract.Backend.Service.ContractRequestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -55,9 +54,7 @@ public class ContractRequestController {
     @PutMapping("/{id}/assign")
     public ResponseEntity<ContractRequestResponse> assignRequest(
             @PathVariable Long id,
-            Authentication authentication) {
-
-        String username = authentication.getName();
+            @RequestHeader("X-USER") String username) {
         ContractRequestResponse response = contractRequestService.assignRequest(id, username);
         return ResponseEntity.ok(response);
     }
