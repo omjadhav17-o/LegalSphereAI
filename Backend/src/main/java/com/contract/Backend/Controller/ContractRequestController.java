@@ -51,6 +51,12 @@ public class ContractRequestController {
         return ResponseEntity.ok(requests);
     }
 
+    @GetMapping("/unassigned")
+    public ResponseEntity<List<ContractRequestResponse>> getUnassignedRequests() {
+        List<ContractRequestResponse> requests = contractRequestService.getUnassignedRequests();
+        return ResponseEntity.ok(requests);
+    }
+
     @PutMapping("/{id}/assign")
     public ResponseEntity<ContractRequestResponse> assignRequest(
             @PathVariable Long id,

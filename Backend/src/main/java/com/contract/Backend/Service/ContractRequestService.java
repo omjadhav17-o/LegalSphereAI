@@ -75,6 +75,14 @@ public class ContractRequestService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<ContractRequestResponse> getUnassignedRequests() {
+        return contractRequestRepository.findByAssignedToIsNull()
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public ContractRequestResponse assignRequest(Long requestId, String username) {
         User user = userRepository.findByUsername(username)
