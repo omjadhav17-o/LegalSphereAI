@@ -57,6 +57,15 @@ public class ContractRequestService {
     }
 
     @Transactional(readOnly = true)
+    public List<ContractRequestResponse> getUnassignedRequests() {
+        return contractRequestRepository.findByAssignedToIsNull()
+                .stream()
+                .filter(r -> r.getStatus() == ContractRequest.RequestStatus.PENDING)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<ContractRequestResponse> getPendingRequests() {
         return contractRequestRepository.findByStatus(ContractRequest.RequestStatus.PENDING)
                 .stream()

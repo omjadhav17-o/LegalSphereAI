@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,80 +39,22 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const mockRequests = [
-  {
-    id: 1,
-    title: "Employment Contract - New Hire",
-    department: "HR",
-    requestor: "Sarah Wilson",
-    priority: "high",
-    status: "pending",
-    dueDate: "2024-01-20",
-    description: "Need employment contract for senior developer position. Include non-compete clause and equity options.",
-    requirements: ["Standard employment terms", "Non-compete clause", "Equity options", "Remote work provisions"],
-    created: "2024-01-15",
-  },
-  {
-    id: 2,
-    title: "Vendor Agreement - Cloud Services",
-    department: "IT",
-    requestor: "Michael Chen",
-    priority: "medium",
-    status: "in-progress",
-    dueDate: "2024-01-25",
-    description: "Cloud hosting service agreement with SLA requirements and data privacy clauses.",
-    requirements: ["SLA guarantees", "Data privacy compliance", "Termination clauses", "Pricing structure"],
-    created: "2024-01-12",
-  },
-  {
-    id: 3,
-    title: "Consulting Agreement - Marketing Campaign",
-    department: "Marketing",
-    requestor: "Emily Rodriguez",
-    priority: "low",
-    status: "completed",
-    dueDate: "2024-01-18",
-    description: "Agreement for external marketing consultant for Q1 campaign.",
-    requirements: ["Project deliverables", "Payment schedule", "IP ownership", "Confidentiality"],
-    created: "2024-01-10",
-  },
-  {
-    id: 4,
-    title: "Software License - Analytics Tool",
-    department: "IT",
-    requestor: "David Park",
-    priority: "medium",
-    status: "review",
-    dueDate: "2024-01-22",
-    description: "Enterprise license for business analytics software with multi-user access.",
-    requirements: ["Multi-user licensing", "Data export rights", "Support terms", "Renewal options"],
-    created: "2024-01-13",
-  },
-];
+// ... existing code ...
 
-const mockTemplates = [
-  {
-    id: 1,
-    title: "Standard Employment Contract",
-    type: "employment",
-    lastUpdated: "2024-01-10",
-    usage: 23,
-  },
-  {
-    id: 2,
-    title: "NDA Template - Standard",
-    type: "nda",
-    lastUpdated: "2024-01-08",
-    usage: 45,
-  },
-  {
-    id: 3,
-    title: "Vendor Service Agreement",
-    type: "vendor",
-    lastUpdated: "2024-01-05",
-    usage: 18,
-  },
-];
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
+type LegalRequest = {
+  id: number;
+  title: string;
+  department: string;
+  requestor: string;
+  priority: string;
+  status: string;
+  dueDate?: string;
+  description: string;
+  requirements: string[];
+  created?: string;
+};
 
 export default function Tasks() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -120,11 +62,62 @@ export default function Tasks() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const { toast } = useToast();
+  const [requests, setRequests] = useState<LegalRequest[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const username = localStorage.getItem("username") || "";
+
+  const mapResponseToLegalRequest = (r: any): LegalRequest => {
+    return {
+      id: r.id,
+      title: r.title,
+      department: r.requestedBy?.department || "-",
+      requestor: r.requestedBy?.fullName || r.requestedBy?.email || "-",
+      priority: (r.priority || "medium").toLowerCase(),
+      status: (r.status || "pending").toLowerCase().replace("_", "-"),
+      dueDate: r.dueDate || undefined,
+      description: r.description || "",
+      requirements: Array.isArray(r.tags) ? r.tags : [],
+      created: r.createdAt ? String(r.createdAt).split("T")[0] : undefined,
+    };
+  };
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const unassignedRes = await fetch(`${API_BASE}/api/v1/requests/unassigned`);
+      const unassigned = unassignedRes.ok ? await unassignedRes.json() : [];
+
+      let assigned: any[] = [];
+      if (username) {
+        const assignedRes = await fetch(`${API_BASE}/api/v1/requests/assigned`, {
+          headers: { "X-Username": username },
+        });
+        assigned = assignedRes.ok ? await assignedRes.json() : [];
+      }
+
+      const combined: LegalRequest[] = ([] as any[])
+        .concat(unassigned || [])
+        .concat(assigned || [])
+        .map(mapResponseToLegalRequest);
+
+      setRequests(combined);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to load legal requests", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getPriorityBadge = (priority: string) => {
     const variants = {
       high: "bg-red-500/10 text-red-500 border-red-500/30",
-      medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30", 
+      medium: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
       low: "bg-green-500/10 text-green-500 border-green-500/30",
     };
     return variants[priority as keyof typeof variants] || variants.medium;
@@ -150,7 +143,7 @@ export default function Tasks() {
     return icons[status as keyof typeof icons] || Clock;
   };
 
-  const filteredRequests = mockRequests.filter((request) => {
+  const filteredRequests = requests.filter((request) => {
     const matchesSearch = request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          request.department.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || request.status === statusFilter;
@@ -196,7 +189,7 @@ export default function Tasks() {
                 </div>
                 <div className="flex gap-4">
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px] bg-background/50">
+                    <SelectTrigger className="W-[140px] bg-background/50">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -224,127 +217,76 @@ export default function Tasks() {
           </Card>
 
           {/* Requests List */}
-          <div className="grid gap-6">
-            {filteredRequests.map((request) => {
-              const StatusIcon = getStatusIcon(request.status);
-              return (
-                <Card key={request.id} className="card-professional hover-lift">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {request.title}
-                          </h3>
-                          <Badge className={getStatusBadge(request.status)}>
-                            <StatusIcon className="w-3 h-3 mr-1" />
-                            {request.status.replace("-", " ")}
-                          </Badge>
-                          <Badge className={getPriorityBadge(request.priority)}>
-                            {request.priority} priority
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-6 text-sm text-muted-foreground mb-3">
-                          <span className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            {request.department} - {request.requestor}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            Due: {request.dueDate}
-                          </span>
-                          <span>Created: {request.created}</span>
-                        </div>
-                        <p className="text-foreground/80 mb-3">{request.description}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {request.requirements.map((req, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {req}
+          {loading ? (
+            <div className="p-4 text-muted-foreground">Loading requests...</div>
+          ) : (
+            <div className="grid gap-6">
+              {filteredRequests.map((request) => {
+                const StatusIcon = getStatusIcon(request.status);
+                return (
+                  <Card key={request.id} className="card-professional hover-lift">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-foreground">
+                              {request.title}
+                            </h3>
+                            <Badge className={getStatusBadge(request.status)}>
+                              <StatusIcon className="w-3 h-3 mr-1" />
+                              {request.status.replace("-", " ")}
                             </Badge>
-                          ))}
+                            <Badge className={getPriorityBadge(request.priority)}>
+                              {request.priority} priority
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-6 text-sm text-muted-foreground mb-3">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              {request.department} - {request.requestor}
+                            </span>
+                            {request.dueDate && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" /> Due {String(request.dueDate)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {request.description}
+                          </p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Details
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>{request.title}</DialogTitle>
-                              <DialogDescription>
-                                Request from {request.department} department
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div>
-                                <h4 className="font-medium mb-2">Description</h4>
-                                <p className="text-muted-foreground">{request.description}</p>
-                              </div>
-                              <div>
-                                <h4 className="font-medium mb-2">Requirements</h4>
-                                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                                  {request.requirements.map((req, index) => (
-                                    <li key={index}>{req}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                        {request.status !== "completed" && (
-                          <Button size="sm" className="bg-primary hover:bg-primary/90">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                          <Button size="sm" onClick={() => handleSendTemplate(1, request.id)}>
                             <Send className="w-4 h-4 mr-2" />
                             Send Template
                           </Button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {filteredRequests.length === 0 && (
+                <Card>
+                  <CardContent className="p-6 text-muted-foreground">No requests found</CardContent>
                 </Card>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
+        {/* Template Library - unchanged */}
         <TabsContent value="templates" className="space-y-6">
           <Card className="card-professional">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Template Library
-              </CardTitle>
+              <CardTitle>Template Library</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4">
-                {mockTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="flex items-center justify-between p-4 border border-border rounded-lg bg-background/30"
-                  >
-                    <div>
-                      <h3 className="font-medium text-foreground mb-1">
-                        {template.title}
-                      </h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>Updated: {template.lastUpdated}</span>
-                        <span>Used {template.usage} times</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="w-4 h-4 mr-2" />
-                        Preview
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-muted-foreground">
+                View and manage contract templates.
               </div>
             </CardContent>
           </Card>

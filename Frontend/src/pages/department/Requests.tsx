@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,75 +10,133 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// ... existing code ...
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
+type RequestItem = {
+  id: number;
+  title: string;
+  description: string;
+  date?: string;
+  status: string;
+  completedDate?: string;
+  hasTemplate?: boolean;
+};
+
 const Requests = () => {
-  const department = localStorage.getItem("userDepartment") || "Department";
+  const [department, setDepartment] = useState<string>(localStorage.getItem("userDepartment") || "Department");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
+  const [contractType, setContractType] = useState<string>("");
+  const [priority, setPriority] = useState<string>("low");
+  const [dueDate, setDueDate] = useState<string>("");
 
-  const pendingRequests = [
-    { 
-      id: 1, 
-      title: "Employment Contract Request", 
-      description: "Need employment contract for new hire John Doe",
-      date: "2024-01-15",
-      status: "Pending"
-    },
-    { 
-      id: 2, 
-      title: "NDA for Vendor Partnership", 
-      description: "Require NDA for partnership with Tech Corp",
-      date: "2024-01-12",
-      status: "In Review"
-    },
-  ];
+  const [pendingRequests, setPendingRequests] = useState<RequestItem[]>([]);
+  const [completedRequests, setCompletedRequests] = useState<RequestItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const completedRequests = [
-    { 
-      id: 3, 
-      title: "Service Agreement - Marketing Agency", 
-      description: "Service agreement with external marketing agency",
-      date: "2024-01-08",
-      completedDate: "2024-01-10",
-      status: "Completed",
-      hasTemplate: true
-    },
-    { 
-      id: 4, 
-      title: "Consultant Agreement", 
-      description: "Agreement for Q1 consultant engagement",
-      date: "2024-01-05",
-      completedDate: "2024-01-07",
-      status: "Completed",
-      hasTemplate: true
-    },
-  ];
+  const username = localStorage.getItem("username") || "";
 
-  const handleCreateRequest = () => {
-    if (!requestTitle || !requestDescription) {
+  const fetchUserAndRequests = async () => {
+    if (!username) return;
+    try {
+      setLoading(true);
+      // Fetch user details
+      const userRes = await fetch(`${API_BASE}/api/v1/users/username/${encodeURIComponent(username)}`);
+      if (!userRes.ok) throw new Error("Failed to fetch user");
+      const user = await userRes.json();
+      if (user?.department) {
+        setDepartment(user.department);
+        localStorage.setItem("userDepartment", user.department);
+      }
+
+      // Fetch my requests
+      const reqRes = await fetch(`${API_BASE}/api/v1/requests/my-requests`, {
+        headers: {
+          "X-Username": username,
+        },
+      });
+      if (!reqRes.ok) throw new Error("Failed to fetch requests");
+      const requests = await reqRes.json();
+
+      const pending: RequestItem[] = [];
+      const completed: RequestItem[] = [];
+      requests.forEach((r: any) => {
+        const item: RequestItem = {
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          status: (r.status || "pending").replace("_", " "),
+          date: r.createdAt?.split("T")[0],
+          completedDate: r.updatedAt?.split("T")[0],
+          hasTemplate: false,
+        };
+        if ((r.status || "").toLowerCase() === "completed") completed.push(item);
+        else pending.push(item);
+      });
+      setPendingRequests(pending);
+      setCompletedRequests(completed);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to load data", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserAndRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCreateRequest = async () => {
+    if (!requestTitle || !requestDescription || !contractType || !priority) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
+        description: "Please fill in title, description, contract type and priority",
+        variant: "destructive",
       });
       return;
     }
+    try {
+      const payload = {
+        title: requestTitle,
+        contractType,
+        description: requestDescription,
+        priority, // low/medium/high accepted
+        dueDate: dueDate || null,
+        tags: [],
+      };
+      const res = await fetch(`${API_BASE}/api/v1/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Username": username,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to create request");
+      }
 
-    toast({
-      title: "Success",
-      description: "Request sent to legal team"
-    });
-
-    setRequestTitle("");
-    setRequestDescription("");
-    setIsDialogOpen(false);
+      toast({ title: "Success", description: "Request sent to legal team" });
+      setRequestTitle("");
+      setRequestDescription("");
+      setContractType("");
+      setPriority("low");
+      setDueDate("");
+      setIsDialogOpen(false);
+      // Refresh lists
+      fetchUserAndRequests();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to create request", variant: "destructive" });
+    }
   };
 
   const handleDownloadTemplate = (requestId: number) => {
-    toast({
-      title: "Success",
-      description: "Template downloaded successfully"
-    });
+    toast({ title: "Success", description: "Template downloaded successfully" });
   };
 
   return (
@@ -106,25 +164,28 @@ const Requests = () => {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Request Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Employment Contract for New Hire"
-                    value={requestTitle}
-                    onChange={(e) => setRequestTitle(e.target.value)}
-                  />
+                  <Input id="title" placeholder="e.g., Employment Contract for New Hire" value={requestTitle} onChange={(e) => setRequestTitle(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Details</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Provide detailed information about what you need..."
-                    value={requestDescription}
-                    onChange={(e) => setRequestDescription(e.target.value)}
-                    className="min-h-[150px]"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Include all relevant details so the legal team can draft the appropriate document
-                  </p>
+                  <Textarea id="description" placeholder="Provide detailed information about what you need..." value={requestDescription} onChange={(e) => setRequestDescription(e.target.value)} className="min-h-[150px]" />
+                  <p className="text-xs text-muted-foreground">Include all relevant details so the legal team can draft the appropriate document</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contractType">Contract Type</Label>
+                  <Input id="contractType" placeholder="e.g., employment, nda, vendor" value={contractType} onChange={(e) => setContractType(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Priority</Label>
+                  <select id="priority" className="w-full border rounded px-3 py-2 bg-background" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dueDate">Due Date (optional)</Label>
+                  <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Department</Label>
@@ -132,12 +193,8 @@ const Requests = () => {
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreateRequest}>
-                  Submit Request
-                </Button>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreateRequest}>Submit Request</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -156,34 +213,34 @@ const Requests = () => {
           </TabsList>
 
           <TabsContent value="pending">
-            <div className="grid gap-4">
-              {pendingRequests.map((request) => (
-                <Card key={request.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">{request.title}</CardTitle>
-                        <CardDescription>{request.description}</CardDescription>
+            {loading ? (
+              <div className="p-4 text-muted-foreground">Loading...</div>
+            ) : (
+              <div className="grid gap-4">
+                {pendingRequests.map((request) => (
+                  <Card key={request.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">{request.title}</CardTitle>
+                          <CardDescription>{request.description}</CardDescription>
+                        </div>
+                        <Badge variant={request.status.toLowerCase() === "pending" ? "secondary" : "default"}>{request.status}</Badge>
                       </div>
-                      <Badge 
-                        variant={request.status === "Pending" ? "secondary" : "default"}
-                      >
-                        {request.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        <p>Submitted: {request.date}</p>
-                        <p>Department: {department}</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          <p>Submitted: {request.date || "-"}</p>
+                          <p>Department: {department}</p>
+                        </div>
+                        <Button variant="outline" size="sm">View Details</Button>
                       </div>
-                      <Button variant="outline" size="sm">View Details</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="completed">
@@ -196,25 +253,20 @@ const Requests = () => {
                         <CardTitle className="text-lg">{request.title}</CardTitle>
                         <CardDescription>{request.description}</CardDescription>
                       </div>
-                      <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                        Completed
-                      </Badge>
+                      <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">Completed</Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-muted-foreground">
-                        <p>Submitted: {request.date}</p>
-                        <p>Completed: {request.completedDate}</p>
+                        <p>Submitted: {request.date || "-"}</p>
+                        <p>Completed: {request.completedDate || "-"}</p>
                         <p>Department: {department}</p>
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm">View Details</Button>
                         {request.hasTemplate && (
-                          <Button 
-                            size="sm"
-                            onClick={() => handleDownloadTemplate(request.id)}
-                          >
+                          <Button size="sm" onClick={() => handleDownloadTemplate(request.id)}>
                             <Download className="mr-2 h-4 w-4" />
                             Save Template
                           </Button>

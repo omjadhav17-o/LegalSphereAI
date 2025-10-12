@@ -23,21 +23,32 @@ public class DataInitializer implements CommandLineRunner {
                     .password("password")
                     .fullName("John Employee")
                     .department("Sales")
-                    .role(User.UserRole.EMPLOYEE)
+                    .role(User.UserRole.DEPARTMENT)
+                    .build();
+
+            // Create department user
+            User departmentUser = User.builder()
+                    .username("department_user")
+                    .email("department@company.com")
+                    .password("password")
+                    .fullName("Department Head")
+                    .department("Human Resources (HR)")
+                    .role(User.UserRole.DEPARTMENT)
                     .build();
 
             // Create legal team user
             User legalTeam = User.builder()
-                    .username("legal")
+                    .username("legal_user")
                     .email("legal@company.com")
                     .password("password")
-                    .fullName("Sarah Wilson")
+                    .fullName("Legal Team User")
                     .department("Legal")
-                    .role(User.UserRole.LEGAL_TEAM)
+                    .role(User.UserRole.LEGALTEAM)
                     .build();
 
-            userRepository.save(employee);
-            userRepository.save(legalTeam);
+             userRepository.save(employee);
+             userRepository.save(departmentUser);
+             userRepository.save(legalTeam);
 
             log.info("Initialized default users");
         }

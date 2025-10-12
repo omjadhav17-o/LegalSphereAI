@@ -24,6 +24,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<string>("");
   const [department, setDepartment] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +47,14 @@ const Login = () => {
       return;
     }
 
-    // Store user info in localStorage (in production, use proper auth)
+    // Persist basic identity for backend calls. If username empty, use email as username key.
+    const effectiveUsername = username || email;
+    localStorage.setItem("username", effectiveUsername);
     localStorage.setItem("userRole", role);
     if (role === "department") {
       localStorage.setItem("userDepartment", department);
+    } else {
+      localStorage.removeItem("userDepartment");
     }
 
     toast({
@@ -83,6 +88,17 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Username (optional)</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Enter a username or leave empty to use email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             

@@ -25,18 +25,20 @@ public class ContractRequestController {
     @PostMapping
     public ResponseEntity<ContractRequestResponse> createRequest(
             @Valid @RequestBody ContractRequestDTO request,
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-Username", required = false) String usernameHeader) {
 
-        String username = authentication.getName();
+        String username = (authentication != null) ? authentication.getName() : usernameHeader;
         ContractRequestResponse response = contractRequestService.createRequest(request, username);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/my-requests")
     public ResponseEntity<List<ContractRequestResponse>> getMyRequests(
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-Username", required = false) String usernameHeader) {
 
-        String username = authentication.getName();
+        String username = (authentication != null) ? authentication.getName() : usernameHeader;
         List<ContractRequestResponse> requests = contractRequestService.getMyRequests(username);
         return ResponseEntity.ok(requests);
     }
@@ -47,11 +49,18 @@ public class ContractRequestController {
         return ResponseEntity.ok(requests);
     }
 
+    @GetMapping("/unassigned")
+    public ResponseEntity<List<ContractRequestResponse>> getUnassignedRequests() {
+        List<ContractRequestResponse> requests = contractRequestService.getUnassignedRequests();
+        return ResponseEntity.ok(requests);
+    }
+
     @GetMapping("/assigned")
     public ResponseEntity<List<ContractRequestResponse>> getAssignedRequests(
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-Username", required = false) String usernameHeader) {
 
-        String username = authentication.getName();
+        String username = (authentication != null) ? authentication.getName() : usernameHeader;
         List<ContractRequestResponse> requests = contractRequestService.getAssignedRequests(username);
         return ResponseEntity.ok(requests);
     }
@@ -59,9 +68,10 @@ public class ContractRequestController {
     @PutMapping("/{id}/assign")
     public ResponseEntity<ContractRequestResponse> assignRequest(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            @RequestHeader(value = "X-Username", required = false) String usernameHeader) {
 
-        String username = authentication.getName();
+        String username = (authentication != null) ? authentication.getName() : usernameHeader;
         ContractRequestResponse response = contractRequestService.assignRequest(id, username);
         return ResponseEntity.ok(response);
     }

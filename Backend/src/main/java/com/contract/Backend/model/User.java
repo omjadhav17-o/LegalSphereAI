@@ -27,7 +27,7 @@ public class User {
 
     @Column(nullable = false)
     private String password;
-
+n
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;
@@ -46,6 +46,6 @@ public class User {
     private LocalDateTime updatedAt;
 
     public enum UserRole {
-        EMPLOYEE, LEGAL_TEAM
+        DEPARTMENT, LEGALTEAM
     }
 }
