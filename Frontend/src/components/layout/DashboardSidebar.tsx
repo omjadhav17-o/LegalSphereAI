@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useLocation } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Home,
   FileText,
@@ -99,13 +100,13 @@ export function DashboardSidebar() {
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavClassName(item.url)}>
+                    <Link to={item.url} className={getNavClassName(item.url)}>
                       <item.icon className="w-4 h-4 mr-3 flex-shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
                       {isActive(item.url) && !collapsed && (
                         <div className="ml-auto w-2 h-2 bg-primary rounded-full" />
                       )}
-                    </NavLink>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
