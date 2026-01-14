@@ -1,4 +1,4 @@
-Contract Sphere AI
+Legal Sphere AI
 ===================
 
 Contract Sphere AI is an end‑to‑end contract lifecycle assistant that combines a Spring Boot backend with a modern React + TypeScript frontend. It helps legal and business teams draft, manage, and track contracts using AI‑assisted workflows and structured templates.
